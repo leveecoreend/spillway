@@ -1,54 +1,65 @@
 package dlq
 
-import "sync/atomic"
+import "sync"
 
-// Metrics tracks operational statistics for the DLQ manager.
-type Metrics struct {
-	enqueued  atomic.Int64
-	retried   atomic.Int64
-	dead      atomic.Int64
-	deleted   atomic.Int64
+// MetricsSnapshot is an immutable point-in-time view of DLQ metrics.
+type MetricsSnapshot struct {
+	TotalEnqueued int
+	TotalRetried  int
+	TotalTerminal int
+	TotalDeleted  int
 }
 
-// NewMetrics creates a new Metrics instance.
+// Metrics tracks operational counters for the DLQ system.
+type Metrics struct {
+	mu            sync.Mutex
+	totalEnqueued int
+	totalRetried  int
+	totalTerminal int
+	totalDeleted  int
+}
+
+// NewMetrics creates a zeroed Metrics instance.
 func NewMetrics() *Metrics {
 	return &Metrics{}
 }
 
-// RecordEnqueue increments the enqueued job counter.
-func (m *Metrics) RecordEnqueue() {
-	m.enqueued.Add(1)
+// RecordEnqueued increments the enqueued counter.
+func (m *Metrics) RecordEnqueued() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.totalEnqueued++
 }
 
-// RecordRetry increments the retried job counter.
-func (m *Metrics) RecordRetry() {
-	m.retried.Add(1)
+// RecordRetried increments the retried counter.
+func (m *Metrics) RecordRetried() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.totalRetried++
 }
 
-// RecordDead increments the dead (terminal) job counter.
-func (m *Metrics) RecordDead() {
-	m.dead.Add(1)
+// RecordTerminal increments the terminal (retry-exhausted) counter.
+func (m *Metrics) RecordTerminal() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.totalTerminal++
 }
 
-// RecordDelete increments the deleted job counter.
-func (m *Metrics) RecordDelete() {
-	m.deleted.Add(1)
+// RecordDeleted increments the deleted counter.
+func (m *Metrics) RecordDeleted() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.totalDeleted++
 }
 
-// Snapshot returns a point-in-time copy of the current metrics.
+// Snapshot returns an immutable copy of the current metrics.
 func (m *Metrics) Snapshot() MetricsSnapshot {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	return MetricsSnapshot{
-		Enqueued: m.enqueued.Load(),
-		Retried:  m.retried.Load(),
-		Dead:     m.dead.Load(),
-		Deleted:  m.deleted.Load(),
+		TotalEnqueued: m.totalEnqueued,
+		TotalRetried:  m.totalRetried,
+		TotalTerminal: m.totalTerminal,
+		TotalDeleted:  m.totalDeleted,
 	}
-}
-
-// MetricsSnapshot is an immutable copy of metrics at a point in time.
-type MetricsSnapshot struct {
-	Enqueued int64
-	Retried  int64
-	Dead     int64
-	Deleted  int64
 }
